@@ -2,15 +2,15 @@ const express = require("express");
 require("dotenv").config();
 const cors = require("cors");
 var jwt = require("jsonwebtoken");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, Db, ObjectId } = require("mongodb");
+const verifyJwtToken = require("./middleware/verifyJwtToken");
+const { query } = require("express");
 
 const port = process.env.PORT || 5000;
 
-console.log(process.env.DB_user);
-
 const app = express();
 
-/* <===============Middlewares============> */
+/* <=============== Middlewares ============> */
 
 /** MiddleWare
  * cors()
@@ -19,19 +19,18 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-/* <===============Middlewares end============> */
+/* <=============== Middlewares end ============> */
 
-/* <===============Root API============> */
+/* <=============== Root API ============> */
 app.get("/", (req, res) => {
   res.json({ message: "Resales Utopia is running" });
 });
 
-app.get("/names", (req, res) => {
-  res.json({ name: "Dabasish Das Joy" });
-});
-/* <===============Intial API end============> */
-/* <===============Database============> */
+/* <=============== Root API end ============> */
 
+/* <=================== Database ==================> */
+
+/* ******** Initialization ******** */
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.mj0nqa8.mongodb.net/?retryWrites=true&w=majority`;
 
 const client = new MongoClient(uri, {
@@ -39,10 +38,107 @@ const client = new MongoClient(uri, {
   useUnifiedTopology: true,
   serverApi: ServerApiVersion.v1,
 });
+/* ******** Initialization end ******** */
 
-/* <===============Database end============> */
+/* ******** Build API ******** */
+const run = async () => {
+  try {
+    /* ******** Database Collections ******** */
+    const db = client.db("resales-utopia");
 
-/* <===============Server Connection============> */
+    const categoriesCollection = db.collection("categoriesCollection");
+    const usersCollection = db.collection("usersCollection");
+    const productsCollection = db.collection("productsCollection");
+
+    /* ******** Database Collections ******** */
+
+    /* ******** Get All Categories (Public) ******** */
+    app.get("/categories", async (req, res) => {
+      const query = {};
+      const result = await categoriesCollection.find(query).toArray();
+
+      res.json({ message: "success", result });
+    });
+    /* ******** Get ALl Categories End ******** */
+
+    /* ******** Get A specific Categories All data ******** */
+    app.get("/categories/:id", async (req, res) => {
+      /* Get the category and then category name */
+      const query = { _id: ObjectId(req.params.id) };
+      const category = await categoriesCollection.findOne(query);
+      const categoryName = category.categoryName;
+
+      res.json({ message: "success", categoryName });
+    });
+    /* ******** Get A specific Categories All data ******** */
+
+    /* ******** Create User data(Public) ******** */
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+
+      //verify if user already exist in the database
+      const email = user.email;
+      const query = { email: email };
+      const prevUser = await usersCollection.findOne(query);
+
+      if (!prevUser) {
+        const result = await usersCollection.insertOne(user);
+      }
+
+      res.json({ message: "success" });
+    });
+    /* ******** Create user data end ******** */
+
+    /* <=============== Get JWT Token ============> */
+    app.get("/jwt", async (req, res) => {
+      const email = req.query.email;
+
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+
+      if (user) {
+        console.log("user found");
+        const token = jwt.sign({ user }, process.env.JWT_TOKEN, {
+          expiresIn: "1d",
+        });
+        return res.json({ message: "success", token: token });
+      }
+
+      return res.json({ message: "Unauthorized access" });
+    });
+    /* <=============== Get JWT Token end ============> */
+
+    /* <=============== Get user type ============> */
+    /**
+     * Get user
+     * Verify jwt token
+     * Get the user type
+     * return the type
+     */
+
+    app.get("/users", verifyJwtToken, async (req, res) => {
+      const email = req.query.email;
+      if (req.decoded.user.email !== email) {
+        res.json({ message: "Unauthorized Access" });
+      }
+
+      const query = { email: email };
+
+      const user = await usersCollection.findOne(query);
+
+      res.json({ userType: user.userType });
+    });
+    /* <=============== Get users Type end ============> */
+  } finally {
+  }
+};
+
+run().catch(console.dir);
+/* ******** Build API End ******** */
+
+/* <=================== Database end ===============> */
+
+/* <=============== Server Connection ============> */
 app.listen(port, () => {
   client.connect((err) => {
     if (err) {
