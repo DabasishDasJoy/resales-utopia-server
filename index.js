@@ -4,7 +4,6 @@ const cors = require("cors");
 var jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion, Db, ObjectId } = require("mongodb");
 const verifyJwtToken = require("./middleware/verifyJwtToken");
-const { query } = require("express");
 
 const port = process.env.PORT || 5000;
 
@@ -52,10 +51,37 @@ const run = async () => {
 
     /* ******** Database Collections ******** */
 
+    /* ******** Middlewares ******** */
+    const verifySeller = async (req, res, next) => {
+      const email = req.decoded.user.email;
+      const query = { email: email };
+
+      const user = await usersCollection.findOne(query);
+      console.log("🚀 ~ file: index.js ~ line 59 ~ verifySeller ~ user", user);
+
+      if (user.userType !== "Seller") {
+        return res.status(403).send("Unauthorized");
+      }
+      next();
+    };
+    /* ******** Middlewares ******** */
+
     /* ******** Get All Categories (Public) ******** */
     app.get("/categories", async (req, res) => {
       const query = {};
       const result = await categoriesCollection.find(query).toArray();
+
+      res.json({ message: "success", result });
+    });
+    /* ******** Get ALl Categories End ******** */
+
+    /* ******** Get All Categories (NameOnly) ******** */
+    app.get("/categories/names", async (req, res) => {
+      const query = {};
+      const result = await categoriesCollection
+        .find(query)
+        .project({ categoryName: 1 })
+        .toArray();
 
       res.json({ message: "success", result });
     });
@@ -83,9 +109,10 @@ const run = async () => {
 
       if (!prevUser) {
         const result = await usersCollection.insertOne(user);
+        res.json({ message: "success", result });
+      } else {
+        res.json({ message: "success" });
       }
-
-      res.json({ message: "success" });
     });
     /* ******** Create user data end ******** */
 
@@ -129,6 +156,54 @@ const run = async () => {
       res.json({ userType: user.userType });
     });
     /* <=============== Get users Type end ============> */
+
+    /* <=============== Add a product (Seller) ============> */
+    /**
+     * Get user
+     * Verify jwt token
+     * Verify Seller
+     * Let to add product
+     */
+
+    app.post("/products", verifyJwtToken, verifySeller, async (req, res) => {
+      const email = req.query.email;
+      if (req.decoded.user.email !== email) {
+        return res.json({ message: "Unauthorized Access" });
+      }
+
+      const product = req.body;
+
+      // Get seller
+      const query = { email: email };
+      const seller = await usersCollection.findOne(query);
+
+      const doc = {
+        ...product,
+        seller: seller.name,
+        email: email,
+        verifiedSeller: seller?.verified || false,
+        postedOn: new Date(),
+      };
+
+      const result = await productsCollection.insertOne(doc);
+
+      res.json({ result });
+    });
+    /* <=============== Add a product end ============> */
+    /* <=============== Get all products============> */
+    app.get("/products", verifyJwtToken, verifySeller, async (req, res) => {
+      const email = req.query.email;
+      if (req.decoded.user.email !== email) {
+        return res.json({ message: "Unauthorized Access" });
+      }
+
+      const query = { email: email };
+
+      const products = await productsCollection.find(query).toArray();
+
+      res.json({ products });
+    });
+    /* <=============== Get all products end ============> */
   } finally {
   }
 };
