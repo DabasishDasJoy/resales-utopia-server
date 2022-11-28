@@ -204,6 +204,25 @@ const run = async () => {
       res.json({ products });
     });
     /* <=============== Get all products end ============> */
+    /* <=============== Delete a product ============> */
+    app.delete(
+      "/products/:id",
+      verifyJwtToken,
+      verifySeller,
+      async (req, res) => {
+        const email = req.query.email;
+        if (req.decoded.user.email !== email) {
+          return res.json({ message: "Unauthorized Access" });
+        }
+
+        const query = { _id: ObjectId(req.params.id) };
+
+        const result = await productsCollection.deleteOne(query);
+
+        res.json({ result });
+      }
+    );
+    /* <=============== Delete a product  end ============> */
   } finally {
   }
 };
