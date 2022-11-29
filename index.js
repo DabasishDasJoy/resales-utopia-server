@@ -48,20 +48,45 @@ const run = async () => {
     const categoriesCollection = db.collection("categoriesCollection");
     const usersCollection = db.collection("usersCollection");
     const productsCollection = db.collection("productsCollection");
+    const advertisementCollection = db.collection("advertisementCollection");
+    const bookingsCollection = db.collection("bookingsCollection");
 
     /* ******** Database Collections ******** */
 
     /* ******** Middlewares ******** */
+    // verify seller
     const verifySeller = async (req, res, next) => {
       const email = req.decoded.user.email;
       const query = { email: email };
 
       const user = await usersCollection.findOne(query);
-      console.log("🚀 ~ file: index.js ~ line 59 ~ verifySeller ~ user", user);
 
       if (user.userType !== "Seller") {
         return res.status(403).send("Unauthorized");
       }
+      next();
+    };
+
+    // verify Admin
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.user.email;
+      const query = { email: email };
+
+      const user = await usersCollection.findOne(query);
+
+      if (user.userType !== "Admin") {
+        return res.status(403).send("Unauthorized");
+      }
+      next();
+    };
+
+    // Verify Email
+    const verifyEmail = async (req, res, next) => {
+      const email = req.query.email;
+      if (req.decoded.user.email !== email) {
+        return res.json({ message: "Unauthorized Access" });
+      }
+
       next();
     };
     /* ******** Middlewares ******** */
@@ -102,17 +127,8 @@ const run = async () => {
     app.post("/users", async (req, res) => {
       const user = req.body;
 
-      //verify if user already exist in the database
-      const email = user.email;
-      const query = { email: email };
-      const prevUser = await usersCollection.findOne(query);
-
-      if (!prevUser) {
-        const result = await usersCollection.insertOne(user);
-        res.json({ message: "success", result });
-      } else {
-        res.json({ message: "success" });
-      }
+      const result = await usersCollection.insertOne(user);
+      res.json({ message: "success", result });
     });
     /* ******** Create user data end ******** */
 
@@ -124,7 +140,6 @@ const run = async () => {
       const user = await usersCollection.findOne(query);
 
       if (user) {
-        console.log("user found");
         const token = jwt.sign({ user }, process.env.JWT_TOKEN, {
           expiresIn: "1d",
         });
@@ -143,15 +158,13 @@ const run = async () => {
      * return the type
      */
 
-    app.get("/users", verifyJwtToken, async (req, res) => {
+    app.get("/users", verifyJwtToken, verifyEmail, async (req, res) => {
       const email = req.query.email;
-      if (req.decoded.user.email !== email) {
-        res.json({ message: "Unauthorized Access" });
-      }
 
       const query = { email: email };
 
       const user = await usersCollection.findOne(query);
+      // console.log("🚀 ~ file: index.js ~ line 169 ~ app.get ~ user", user);
 
       res.json({ userType: user.userType });
     });
@@ -165,55 +178,60 @@ const run = async () => {
      * Let to add product
      */
 
-    app.post("/products", verifyJwtToken, verifySeller, async (req, res) => {
-      const email = req.query.email;
-      if (req.decoded.user.email !== email) {
-        return res.json({ message: "Unauthorized Access" });
+    app.post(
+      "/products",
+      verifyJwtToken,
+      verifySeller,
+      verifyEmail,
+      async (req, res) => {
+        const email = req.query.email;
+
+        const product = req.body;
+
+        // Get seller
+        const query = { email: email };
+        const seller = await usersCollection.findOne(query);
+
+        const doc = {
+          ...product,
+          seller: seller.name,
+          email: email,
+          verifiedSeller: seller?.verified || false,
+          postedOn: new Date(),
+        };
+
+        const result = await productsCollection.insertOne(doc);
+
+        res.json({ result });
       }
-
-      const product = req.body;
-
-      // Get seller
-      const query = { email: email };
-      const seller = await usersCollection.findOne(query);
-
-      const doc = {
-        ...product,
-        seller: seller.name,
-        email: email,
-        verifiedSeller: seller?.verified || false,
-        postedOn: new Date(),
-      };
-
-      const result = await productsCollection.insertOne(doc);
-
-      res.json({ result });
-    });
+    );
     /* <=============== Add a product end ============> */
     /* <=============== Get all products============> */
-    app.get("/products", verifyJwtToken, verifySeller, async (req, res) => {
-      const email = req.query.email;
-      if (req.decoded.user.email !== email) {
-        return res.json({ message: "Unauthorized Access" });
+    app.get(
+      "/products",
+      verifyJwtToken,
+      verifySeller,
+      verifyEmail,
+      async (req, res) => {
+        const email = req.query.email;
+
+        const query = { email: email };
+
+        const products = await productsCollection.find(query).toArray();
+
+        res.json({ products });
       }
-
-      const query = { email: email };
-
-      const products = await productsCollection.find(query).toArray();
-
-      res.json({ products });
-    });
+    );
     /* <=============== Get all products end ============> */
+
     /* <=============== Delete a product ============> */
     app.delete(
       "/products/:id",
       verifyJwtToken,
       verifySeller,
+      verifyEmail,
       async (req, res) => {
         const email = req.query.email;
-        if (req.decoded.user.email !== email) {
-          return res.json({ message: "Unauthorized Access" });
-        }
 
         const query = { _id: ObjectId(req.params.id) };
 
@@ -223,6 +241,46 @@ const run = async () => {
       }
     );
     /* <=============== Delete a product  end ============> */
+
+    /* <=============== Advertise Product add ============> */
+    app.post(
+      "/advertise",
+      verifyJwtToken,
+      verifySeller,
+      verifyEmail,
+      async (req, res) => {
+        const product = req.body;
+        const result = await advertisementCollection.insertOne(product);
+
+        res.json({ result });
+      }
+    );
+    /* <=============== Advertise Product add ============> */
+    /* <=============== Get All Categroy Specific Products  ============> */
+    app.get("/products/:categoryId", async (req, res) => {
+      const id = req.params.categoryId;
+
+      const query = { _id: ObjectId(id) };
+
+      const category = await categoriesCollection.findOne(query);
+      const products = await productsCollection
+        .find({
+          category: category.categoryName,
+        })
+        .toArray();
+
+      res.json({ products });
+    });
+    /* <=============== Get All sellers end ============> */
+    /* <=============== Create Booking  ============> */
+    app.post("/booking", async (req, res) => {
+      const booking = req.body;
+
+      const result = await bookingsCollection.insertOne(booking);
+
+      res.json({ result });
+    });
+    /* <=============== Create Booking end ============> */
   } finally {
   }
 };
