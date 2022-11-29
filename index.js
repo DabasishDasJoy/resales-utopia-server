@@ -258,6 +258,7 @@ const run = async () => {
       }
     );
     /* <=============== Advertise Product add ============> */
+
     /* <=============== Get All Categroy Specific Products  ============> */
     app.get("/products/:categoryId", async (req, res) => {
       const id = req.params.categoryId;
@@ -298,13 +299,9 @@ const run = async () => {
     /* <=============== Get a Booking  ============> */
     app.get("/booking/:id", verifyJwtToken, verifyEmail, async (req, res) => {
       const id = req.params.id;
-      const query = { _id: id };
+      const query = { _id: ObjectId(id) };
 
       const bookingProduct = await bookingsCollection.findOne(query);
-      console.log(
-        "🚀 ~ file: index.js ~ line 304 ~ app.get ~ bookingProduct",
-        bookingProduct
-      );
 
       res.json({ bookingProduct });
     });
@@ -327,24 +324,63 @@ const run = async () => {
       });
     });
     /* <=============== Payment end ============> */
-
+    /* <=============== Update Booking Product end ============> */
     app.post("/payments", async (req, res) => {
       const payment = req.body;
       const result = await paymentsCollection.insertOne(payment);
       const id = payment.bookingId;
-      const filter = { _id: id };
+      const filter = { productId: id };
       const updatedDoc = {
         $set: {
           paid: true,
           transactionId: payment.transactionId,
         },
       };
-      const updatedResult = await bookingsCollection.updateOne(
+      const updateBooking = await bookingsCollection.updateOne(
         filter,
         updatedDoc
       );
+
+      const updateProduct = await productsCollection.updateOne(
+        { _id: ObjectId(id) },
+        updatedDoc
+      );
+
       res.send(result);
     });
+    /* <=============== Update Booking Product end ============> */
+
+    /* <=============== Get All Buyers (Admin) ============> */
+    app.get(
+      "/buyers",
+      verifyJwtToken,
+      verifyAdmin,
+      verifyEmail,
+      async (req, res) => {
+        const query = { userType: "Buyer" };
+
+        const buyers = await usersCollection.find(query).toArray();
+
+        res.json({ buyers });
+      }
+    );
+    /* <=============== Get All Buyers (Admin) ============> */
+    /* <=============== Delete Buyer (Admin) ============> */
+    app.delete(
+      "/buyers/:id",
+      verifyJwtToken,
+      verifyEmail,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+
+        const query = { _id: ObjectId(id) };
+        const result = await usersCollection.deleteOne(query);
+
+        res.json({ result });
+      }
+    );
+    /* <=============== Get All Buyer (Admin) ============> */
   } finally {
   }
 };
