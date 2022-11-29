@@ -4,6 +4,7 @@ const cors = require("cors");
 var jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion, Db, ObjectId } = require("mongodb");
 const verifyJwtToken = require("./middleware/verifyJwtToken");
+const stripe = require("stripe")(process.env.STRIPE_SECRET);
 
 const port = process.env.PORT || 5000;
 
@@ -50,6 +51,7 @@ const run = async () => {
     const productsCollection = db.collection("productsCollection");
     const advertisementCollection = db.collection("advertisementCollection");
     const bookingsCollection = db.collection("bookingsCollection");
+    const paymentsCollection = db.collection("paymentsCollection");
 
     /* ******** Database Collections ******** */
 
@@ -273,7 +275,7 @@ const run = async () => {
     });
     /* <=============== Get All sellers end ============> */
     /* <=============== Create Booking  ============> */
-    app.post("/booking", async (req, res) => {
+    app.post("/bookings", async (req, res) => {
       const booking = req.body;
 
       const result = await bookingsCollection.insertOne(booking);
@@ -281,6 +283,68 @@ const run = async () => {
       res.json({ result });
     });
     /* <=============== Create Booking end ============> */
+
+    /* <=============== Get Bookings  ============> */
+    app.get("/bookings", verifyJwtToken, verifyEmail, async (req, res) => {
+      const email = req.query.email;
+      const query = { email: email };
+
+      const bookingProducts = await bookingsCollection.find(query).toArray();
+
+      res.json({ bookingProducts });
+    });
+    /* <=============== Create Booking end ============> */
+
+    /* <=============== Get a Booking  ============> */
+    app.get("/booking/:id", verifyJwtToken, verifyEmail, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: id };
+
+      const bookingProduct = await bookingsCollection.findOne(query);
+      console.log(
+        "🚀 ~ file: index.js ~ line 304 ~ app.get ~ bookingProduct",
+        bookingProduct
+      );
+
+      res.json({ bookingProduct });
+    });
+    /* <=============== Create Booking end ============> */
+
+    /* <=============== Payment ============> */
+    app.post("/create-payment-intent", async (req, res) => {
+      const { sellingPrice } = req.body;
+      const amount = sellingPrice * 100;
+
+      // Create a PaymentIntent with the order amount and currency
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
+    /* <=============== Payment end ============> */
+
+    app.post("/payments", async (req, res) => {
+      const payment = req.body;
+      const result = await paymentsCollection.insertOne(payment);
+      const id = payment.bookingId;
+      const filter = { _id: id };
+      const updatedDoc = {
+        $set: {
+          paid: true,
+          transactionId: payment.transactionId,
+        },
+      };
+      const updatedResult = await bookingsCollection.updateOne(
+        filter,
+        updatedDoc
+      );
+      res.send(result);
+    });
   } finally {
   }
 };
