@@ -71,7 +71,7 @@ const run = async () => {
 
     // verify Admin
     const verifyAdmin = async (req, res, next) => {
-      const email = req.decoded.user.email;
+      const email = req?.decoded?.user?.email;
       const query = { email: email };
 
       const user = await usersCollection.findOne(query);
@@ -85,7 +85,7 @@ const run = async () => {
     // Verify Email
     const verifyEmail = async (req, res, next) => {
       const email = req.query.email;
-      if (req.decoded.user.email !== email) {
+      if (req?.decoded?.user?.email !== email) {
         return res.json({ message: "Unauthorized Access" });
       }
 
@@ -381,6 +381,64 @@ const run = async () => {
       }
     );
     /* <=============== Get All Buyer (Admin) ============> */
+    /* <=============== Get All Buyers (Admin) ============> */
+    app.get(
+      "/sellers",
+      verifyJwtToken,
+      verifyAdmin,
+      verifyEmail,
+      async (req, res) => {
+        const query = { userType: "Seller" };
+
+        const sellers = await usersCollection.find(query).toArray();
+
+        res.json({ sellers });
+      }
+    );
+    /* <=============== Get All Buyers (Admin) ============> */
+    /* <=============== Delete Buyer (Admin) ============> */
+    app.delete(
+      "/sellers/:id",
+      verifyJwtToken,
+      verifyEmail,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+
+        const query = { _id: ObjectId(id) };
+        const result = await usersCollection.deleteOne(query);
+
+        res.json({ result });
+      }
+    );
+    /* <=============== Get All Buyer (Admin) ============> */
+    /* <=============== Verify Seller (Admin) ============> */
+    app.put("/sellers/:id", verifyJwtToken, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: ObjectId(id) };
+
+      const updatedDoc = {
+        $set: {
+          verifiedSeller: true,
+        },
+      };
+      const result = await usersCollection.updateOne(filter, updatedDoc);
+      const user = await usersCollection.findOne({ _id: ObjectId(id) });
+      console.log("🚀 ~ file: index.js ~ line 427 ~ app.put ~ user", user);
+      const updateProducts = await productsCollection.updateMany(
+        {
+          email: user.email,
+        },
+        updatedDoc
+      );
+      console.log(
+        "🚀 ~ file: index.js ~ line 434 ~ app.put ~ updateProducts",
+        updateProducts
+      );
+
+      res.json({ result });
+    });
+    /* <=============== Verify Seller (Admin) ============> */
   } finally {
   }
 };
