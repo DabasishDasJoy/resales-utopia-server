@@ -258,6 +258,13 @@ const run = async () => {
       }
     );
     /* <=============== Advertise Product add ============> */
+    /* <=============== Advertise Product get ============> */
+    app.get("/advertise", async (req, res) => {
+      const adevertisements = await advertisementCollection.find({}).toArray();
+
+      res.json({ adevertisements });
+    });
+    /* <=============== Advertise Product get end ============> */
 
     /* <=============== Get All Categroy Specific Products  ============> */
     app.get("/products/:categoryId", async (req, res) => {
@@ -345,6 +352,9 @@ const run = async () => {
         { _id: ObjectId(id) },
         updatedDoc
       );
+      const updateAdvertisement = await advertisementCollection.deleteOne({
+        productId: id,
+      });
 
       res.send(result);
     });
@@ -430,10 +440,6 @@ const run = async () => {
           email: user.email,
         },
         updatedDoc
-      );
-      console.log(
-        "🚀 ~ file: index.js ~ line 434 ~ app.put ~ updateProducts",
-        updateProducts
       );
 
       res.json({ result });
