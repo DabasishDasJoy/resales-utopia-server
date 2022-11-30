@@ -10,4 +10,4 @@
 
 ##Link
 
-- https://ucritique-server.vercel.app/
+- https://resales-utopia-server.vercel.app
