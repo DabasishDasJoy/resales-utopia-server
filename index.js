@@ -85,8 +85,10 @@ const run = async () => {
     // Verify Email
     const verifyEmail = async (req, res, next) => {
       const email = req.query.email;
+      console.log("🚀 ~ file: index.js:88 ~ verifyEmail ~ email", email);
+      console.log(req.decoded);
       if (req?.decoded?.user?.email !== email) {
-        return res.json({ message: "Unauthorized Access" });
+        return res.json({ message: "Unauthorized Access email" });
       }
 
       next();
@@ -160,7 +162,7 @@ const run = async () => {
      * return the type
      */
 
-    app.get("/users", verifyJwtToken, verifyEmail, async (req, res) => {
+    app.get("/users", verifyJwtToken, async (req, res) => {
       const email = req.query.email;
 
       const query = { email: email };
